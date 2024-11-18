@@ -41,6 +41,11 @@ TWILIO_ACCOUNT_SID=your_sid
 TWILIO_AUTHTOKEN=your_token
 TWILIO_SERVICES_ID=your_service_id
 ```
+
+4. Build and run the project. It will create executable binary in bin which will run the server
+```
+make run
+```
 ---
 
 ## Architecture of the OTP-Auth-System 
