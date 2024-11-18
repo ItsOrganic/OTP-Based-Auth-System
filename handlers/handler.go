@@ -13,6 +13,58 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// Create user with details number, name, age, email,  Method=POST
+func CreateUser(c *gin.Context) {
+	var newUser models.User
+	if err := c.BindJSON(&newUser); err != nil {
+		c.JSON(400, gin.H{"message": "Invalid request format"})
+		return
+	}
+
+	err := database.MI.DB.Collection("users").FindOne(c, bson.M{"phonenumber": newUser.PhoneNumber}).Decode(&newUser)
+	if err == nil {
+		c.JSON(409, gin.H{"message": "User already exists"})
+		return
+	}
+
+	// Get initial device info
+	fingerprintService := service.NewFingerprintService()
+	ip := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	deviceID := fingerprintService.GenerateDeviceID(userAgent, ip)
+
+	ipInfo, _ := fingerprintService.GetLocationInfo(ip)
+	location := "Unknown"
+	if ipInfo != nil {
+		location = fmt.Sprintf("%s, %s, %s", ipInfo.City, ipInfo.Region, ipInfo.Country)
+	}
+
+	// Initialize known devices with the current device
+	newUser.KnownDevices = []models.DeviceInfo{{
+		IP:        ip,
+		UserAgent: userAgent,
+		Location:  location,
+		LastUsed:  time.Now(),
+		DeviceID:  deviceID,
+	}}
+
+	//Verify the email format
+	if !utils.VerifyEmail(newUser.Email) {
+		c.JSON(400, gin.H{"message": "Invalid email format"})
+		return
+	}
+
+	// Insert user into database
+	_, err = database.MI.DB.Collection("users").InsertOne(c, newUser)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "Failed to create user"})
+		return
+	}
+
+	c.JSON(201, gin.H{"message": "User created successfully"})
+}
+
+// Login with phone number Method=POST
 func Login(c *gin.Context) {
 	var loginRequest models.Login
 	if err := c.BindJSON(&loginRequest); err != nil {
@@ -50,7 +102,7 @@ func Login(c *gin.Context) {
 
 	// Find user and their known devices
 	var user models.User
-	err = database.MI.DB.Collection("users").FindOne(c, bson.M{"phone_number": loginRequest.PhoneNumber}).Decode(&user)
+	err = database.MI.DB.Collection("users").FindOne(c, bson.M{"phonenumber": loginRequest.PhoneNumber}).Decode(&user)
 	if err != nil {
 		c.JSON(404, gin.H{"message": "User with that number not found"})
 		return
@@ -91,6 +143,7 @@ func Login(c *gin.Context) {
 	})
 }
 
+// Verify OTP and generate JWT token Method=POST
 func VerifyOTP(c *gin.Context) {
 	var otp models.OTPResponse
 	if err := c.BindJSON(&otp); err != nil {
@@ -120,50 +173,6 @@ func VerifyOTP(c *gin.Context) {
 		"message": "OTP verified successfully",
 		"token":   token,
 	})
-}
-
-func CreateUser(c *gin.Context) {
-	var newUser models.User
-	if err := c.BindJSON(&newUser); err != nil {
-		c.JSON(400, gin.H{"message": "Invalid request format"})
-		return
-	}
-
-	err := database.MI.DB.Collection("users").FindOne(c, bson.M{"phonenumber": newUser.PhoneNumber}).Decode(&newUser)
-	if err == nil {
-		c.JSON(409, gin.H{"message": "User already exists"})
-		return
-	}
-
-	// Get initial device info
-	fingerprintService := service.NewFingerprintService()
-	ip := c.ClientIP()
-	userAgent := c.GetHeader("User-Agent")
-	deviceID := fingerprintService.GenerateDeviceID(userAgent, ip)
-
-	ipInfo, _ := fingerprintService.GetLocationInfo(ip)
-	location := "Unknown"
-	if ipInfo != nil {
-		location = fmt.Sprintf("%s, %s, %s", ipInfo.City, ipInfo.Region, ipInfo.Country)
-	}
-
-	// Initialize known devices with the current device
-	newUser.KnownDevices = []models.DeviceInfo{{
-		IP:        ip,
-		UserAgent: userAgent,
-		Location:  location,
-		LastUsed:  time.Now(),
-		DeviceID:  deviceID,
-	}}
-
-	// Insert user into database
-	_, err = database.MI.DB.Collection("users").InsertOne(c, newUser)
-	if err != nil {
-		c.JSON(500, gin.H{"message": "Failed to create user"})
-		return
-	}
-
-	c.JSON(201, gin.H{"message": "User created successfully"})
 }
 
 func FindUser(c *gin.Context) {
