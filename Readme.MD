@@ -49,7 +49,7 @@ make run
 ---
 
 ## Architecture of the OTP-Auth-System 
-<img src="https://github.com/ItsOrganic/OTP-Based-Auth-System/assets/diagram.png" align="center">
+<img src="https://github.com/ItsOrganic/OTP-Based-Auth-System/blob/main/assets/diagram.png" align="center">
 
 ## API Endpoints
 
